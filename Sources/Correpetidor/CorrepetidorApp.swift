@@ -1,8 +1,8 @@
 import AppKit
-import PianoCore
+import CorrepetidorCore
 import SwiftUI
 
-@main struct PianoApp: App {
+@main struct CorrepetidorApp: App {
     @StateObject private var piano = Piano()
 
     init() {
@@ -12,7 +12,7 @@ import SwiftUI
     }
 
     var body: some Scene {
-        WindowGroup("Piano Virtual") {
+        WindowGroup("Correpetidor") {
             VStack(spacing: 12) {
                 ControlBar()
                 PianoKeyboard()

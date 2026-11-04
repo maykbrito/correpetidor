@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "PianoVirtual",
+    name: "Correpetidor",
     platforms: [.macOS(.v14)],
     targets: [
-        .target(name: "PianoCore"),
-        .executableTarget(name: "PianoApp", dependencies: ["PianoCore"]),
-        .testTarget(name: "PianoCoreTests", dependencies: ["PianoCore"]),
+        .target(name: "CorrepetidorCore"),
+        .executableTarget(name: "Correpetidor", dependencies: ["CorrepetidorCore"]),
+        .testTarget(name: "CorrepetidorCoreTests", dependencies: ["CorrepetidorCore"]),
     ]
 )

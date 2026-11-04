@@ -1,7 +1,7 @@
 import XCTest
-@testable import PianoCore
+@testable import CorrepetidorCore
 
-final class PianoCoreTests: XCTestCase {
+final class CorrepetidorCoreTests: XCTestCase {
     func testTonics() {
         XCTAssertEqual(Playback.tonics(from: 60, to: 60, returnDown: false), [60])
         XCTAssertEqual(Playback.tonics(from: 60, to: 63, returnDown: false), [60, 61, 62, 63])

@@ -106,8 +106,14 @@ public func noteName(_ note: Int) -> String {
 
 @MainActor public final class RoutineStore: ObservableObject {
     public nonisolated static var defaultDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("PianoVirtual/rotinas", isDirectory: true)
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("Correpetidor", isDirectory: true)
+        // migração única do nome antigo do app
+        let old = base.appendingPathComponent("PianoVirtual", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path), FileManager.default.fileExists(atPath: old.path) {
+            try? FileManager.default.moveItem(at: old, to: dir)
+        }
+        return dir.appendingPathComponent("rotinas", isDirectory: true)
     }
 
     @Published public private(set) var routines: [Routine] = []
@@ -162,7 +168,7 @@ public func noteName(_ note: Int) -> String {
     }
 
     static let agentsDoc = """
-    # Rotinas do Piano Virtual
+    # Rotinas do Correpetidor
 
     Cada arquivo `<slug>.json` nesta pasta é uma rotina (vocalize ou escala). O app recarrega sozinho quando a pasta muda.
 

@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import PianoCore
+import CorrepetidorCore
 
 /// Captura noteOn/noteOff relativos ao início (após a contagem).
 struct Recorder {

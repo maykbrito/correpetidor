@@ -1,4 +1,4 @@
-import PianoCore
+import CorrepetidorCore
 import SwiftUI
 
 struct ControlBar: View {

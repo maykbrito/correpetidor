@@ -1,4 +1,4 @@
-import PianoCore
+import CorrepetidorCore
 import SwiftUI
 
 /// Dó2–Dó6; faixa do PC destacada.
