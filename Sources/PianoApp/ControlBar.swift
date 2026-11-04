@@ -38,6 +38,7 @@ struct ControlBar: View {
                 .fixedSize()
                 .popover(isPresented: $showScale) { ScaleForm { showScale = false } }
             }
+            Spacer(minLength: 24)
             group("PROGRESSÃO") {
                 if piano.to > piano.from { Text("\(noteName(piano.from))→\(noteName(piano.to))") }
                 Button { showProgression = true } label: { Image(systemName: "slider.horizontal.3") }
