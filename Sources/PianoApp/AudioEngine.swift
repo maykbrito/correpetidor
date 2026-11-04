@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 
 /// Sampler GM do sistema: piano no canal 0, metrônomo na percussão (canal 9).
@@ -21,6 +22,17 @@ import AVFoundation
         try drums.loadSoundBankInstrument(at: dls, program: 0,
             bankMSB: UInt8(kAUSampler_DefaultPercussionBankMSB), bankLSB: UInt8(kAUSampler_DefaultBankLSB))
         try engine.start()
+        // Sleep/troca de saída derruba o engine: religa ao acordar ou mudar config.
+        let restart: @Sendable (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in self?.restart() }
+        }
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main, using: restart)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main, using: restart)
+    }
+
+    private func restart() {
+        engine.stop()
+        try? engine.start()
     }
 
     func noteOn(_ n: Int) { held.remove(n); piano.startNote(UInt8(n), withVelocity: 90, onChannel: 0) }

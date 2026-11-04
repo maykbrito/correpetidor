@@ -22,6 +22,7 @@ import SwiftUI
             .onAppear { KeyInput.install(piano) }
             .alert(piano.audioError ?? "", isPresented: .constant(piano.audioError != nil)) {}
         }
+        .defaultSize(width: 1315, height: 352)
     }
 }
 

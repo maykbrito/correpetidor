@@ -22,6 +22,7 @@ struct ControlBar: View {
                     }
                 Button(piano.isPlaying ? "■ STOP" : "▶ PLAY") { piano.togglePlay() }
                     .disabled(piano.selected == nil)
+                Toggle("🔁 LOOP", isOn: $piano.loop).toggleStyle(.button)
             }
             group("ROTINA") {
                 Menu(piano.selected?.name ?? "Escolher…") {

@@ -43,6 +43,7 @@ struct Recorder {
     @Published var to = 60
     @Published var returnDown = false
     @Published var pause: Double = 1.5
+    @Published var loop = false
     @Published var now: (Int, Int?)? = nil          // tônica atual → próxima
     @Published private(set) var isPlaying = false
     @Published private(set) var isRecording = false
@@ -128,12 +129,15 @@ struct Recorder {
         task = Task {
             let metro = metronome ? Task { await clickLoop() } : nil
             defer { metro?.cancel() }
-            for (i, t) in tonics.enumerated() {
-                if Task.isCancelled { break }
-                if progression { now = (t, i + 1 < tonics.count ? tonics[i + 1] : nil) }
-                await playOnce(Playback.schedule(r, tonic: t, bpm: bpm))
-                if i + 1 < tonics.count { try? await Task.sleep(for: .seconds(pause)) }
-            }
+            repeat {
+                for (i, t) in tonics.enumerated() {
+                    if Task.isCancelled { break }
+                    let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
+                    if progression { now = (t, next) }
+                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm))
+                    if next != nil { try? await Task.sleep(for: .seconds(pause)) }
+                }
+            } while loop && !Task.isCancelled
             if !Task.isCancelled { finishPlay() }
         }
     }
