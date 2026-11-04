@@ -31,7 +31,7 @@ A pasta tem um `AGENTS.md` explicando o formato. Aponte qualquer agente de IA pa
 Requer macOS 14 ou mais novo e as ferramentas de linha de comando do Xcode.
 
 ```sh
-git clone <este repositório>
+git clone https://github.com/maykbrito/correpetidor.git
 cd correpetidor
 ./scripts/build-app.sh
 open dist/Correpetidor.app        # ou arraste para /Applications
