@@ -35,16 +35,17 @@ struct Recorder {
     @Published var octave = 4
     @Published var sustain = false { didSet { audio?.sustain = sustain } }
     @Published var metronome = false
-    @Published var bpm: Double = 80
+    @Published var bpm: Double = 80 { didSet { if isPlaying { audio?.setBpm(bpm) } } }
     @Published var showNotes = true
     @Published var showKeys = true
     /// Trocar ou apagar a rotina para o que estiver tocando (senão o loop segue sem botão de parar).
     @Published var selected: Routine? { didSet { stop(); resetProgression() } }
-    @Published var from = 60
-    @Published var to = 60
-    @Published var returnDown = false
-    @Published var pause: Double = 1.5
-    @Published var loop = false
+    @Published var from = 60 { didSet { progressionChanged() } }
+    @Published var to = 60 { didSet { progressionChanged() } }
+    @Published var returnDown = false { didSet { progressionChanged() } }
+    /// Pausa entre tônicas, em tempos (acompanha o BPM).
+    @Published var pause = 2 { didSet { progressionChanged() } }
+    @Published var loop = false { didSet { progressionChanged() } }
     @Published var now: (Int, Int?)? = nil          // tônica atual → próxima
     @Published private(set) var isPlaying = false
     @Published private(set) var isRecording = false
@@ -71,7 +72,7 @@ struct Recorder {
     private func persist() {
         let state: [String: Any] = [
             "routine": selected?.name ?? "", "from": from, "to": to, "returnDown": returnDown,
-            "pause": pause, "loop": loop, "bpm": bpm, "octave": octave, "sustain": sustain,
+            "pauseBeats": pause, "loop": loop, "bpm": bpm, "octave": octave, "sustain": sustain,
             "showNotes": showNotes, "showKeys": showKeys,
         ]
         defaults.set(state, forKey: "state")
@@ -83,7 +84,7 @@ struct Recorder {
         if let v = s["from"] as? Int { from = v }
         if let v = s["to"] as? Int { to = v }
         if let v = s["returnDown"] as? Bool { returnDown = v }
-        if let v = s["pause"] as? Double { pause = v }
+        if let v = s["pauseBeats"] as? Int { pause = v }   // a antiga "pause" (segundos) é ignorada
         if let v = s["loop"] as? Bool { loop = v }
         if let v = s["bpm"] as? Double { bpm = v }
         if let v = s["octave"] as? Int { octave = v }
@@ -106,10 +107,10 @@ struct Recorder {
 
     // MARK: metrônomo
     /// Cliques em tempos absolutos a partir de `t0` (sem acumular atraso).
-    private func clickLoop(from t0: ContinuousClock.Instant = .now, bpm fixed: Double? = nil) async {
+    private func clickLoop(from t0: ContinuousClock.Instant = .now) async {
         var i = 0
         while !Task.isCancelled {
-            let spb = 60 / (fixed ?? bpm)
+            let spb = 60 / bpm
             guard (try? await Task.sleep(until: t0 + .seconds(Double(i) * spb), tolerance: .zero)) != nil else { return }
             audio?.click(accent: i % 4 == 0); i += 1
         }
@@ -156,46 +157,64 @@ struct Recorder {
 
     func togglePlay() { isPlaying ? stop() : play() }
 
+    /// Passada na sequência: começa em `at`, termina em `end` (antes, se cortada por mudança de progressão).
+    private struct Pass { let at: Double; var end: Double; let tl: Timeline; let tonics: [Int] }
+    private var passes: [Pass] = []
+    private var playing: Routine?
+
+    private var currentTonics: [Int] { Playback.tonics(from: from, to: max(to, from), returnDown: returnDown) }
+
+    private func pass(_ tonics: [Int], at: Double) -> Pass? {
+        guard let r = playing, !tonics.isEmpty else { return nil }
+        let tl = Playback.timeline(r, tonics: tonics, pauseBeats: Double(pause), loop: loop)
+        guard tl.length > 0 else { return nil }   // rotina vazia: nada a acrescentar (evita laço sem fim)
+        audio?.append(tl, at: at)
+        return Pass(at: at, end: at + tl.length, tl: tl, tonics: tonics)
+    }
+
     func play() {
         guard let r = selected else { return }
         stopRecord()
-        let tonics = Playback.tonics(from: from, to: max(to, from), returnDown: returnDown)
-        let spb = 60 / bpm, loop = loop, progression = tonics.count > 1
-        let tl = Playback.timeline(r, tonics: tonics, pauseBeats: pause / spb, loop: loop)
         task?.cancel()   // derruba metrônomo livre, se houver
-        do { try audio?.play(tl, bpm: bpm, loop: loop, clicks: metronome) } catch { return }
+        playing = r
+        do { try audio?.startSequence(bpm: bpm, clicks: metronome) } catch { return }
+        passes = pass(currentTonics, at: 0).map { [$0] } ?? []
         isPlaying = true
-        // O som é do sequenciador; aqui só a tela (teclas acesas, tônica atual) acompanha.
+        // O som é do sequenciador; a tela lê a posição dele (acompanha BPM mudado ao vivo)
+        // e, com LOOP, acrescenta a próxima passada antes da atual acabar.
         task = Task {
-            var t0 = ContinuousClock.now
-            repeat {
-                let start = t0
-                await withTaskGroup(of: Void.self) { g in
-                    for (i, b) in tl.starts.enumerated() where progression {
-                        let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
-                        g.addTask { @MainActor in
-                            guard (try? await Task.sleep(until: start + .seconds(b * spb), tolerance: .zero)) != nil else { return }
-                            self.now = (tonics[i], next)
-                        }
-                    }
-                    for n in tl.notes {
-                        g.addTask { @MainActor in
-                            guard (try? await Task.sleep(until: start + .seconds(n.beat * spb), tolerance: .zero)) != nil else { return }
-                            self.lit.insert(n.note)
-                            try? await Task.sleep(until: start + .seconds((n.beat + n.duration) * spb), tolerance: .zero)
-                            self.lit.remove(n.note)
-                        }
-                    }
+            while !Task.isCancelled, let beat = audio?.position, let last = passes.last {
+                if beat >= last.end - 4, loop, let p = pass(currentTonics, at: last.end) { passes.append(p); continue }
+                if beat >= last.end { break }
+                guard let p = passes.last(where: { $0.at <= beat }) else { break }
+                let st = p.tl.state(at: beat - p.at)
+                if lit != st.lit { lit = st.lit }
+                if let i = st.tonic {
+                    let next = i + 1 < p.tonics.count ? p.tonics[i + 1] : (loop ? currentTonics.first : nil)
+                    let show = p.tonics.count > 1 || currentTonics.count > 1 ? (p.tonics[i], next) : nil
+                    if now?.0 != show?.0 || now?.1 != show?.1 { now = show }
                 }
-                t0 = start + .seconds(tl.length * spb)
-                guard (try? await Task.sleep(until: t0, tolerance: .zero)) != nil else { break }
-            } while loop && !Task.isCancelled
+                try? await Task.sleep(for: .milliseconds(15))   // ~1 quadro de tela; não mexe no som
+            }
             if !Task.isCancelled { finishPlay() }
         }
     }
 
+    /// Progressão mudada no meio do PLAY: a tônica atual termina (com sua pausa) e a nova segue dali.
+    private func progressionChanged() {
+        guard isPlaying, let beat = audio?.position,
+              let k = passes.lastIndex(where: { $0.at <= beat }) else { return }
+        let p = passes[k]
+        guard let i = p.tl.state(at: beat - p.at).tonic else { return }
+        let cut = p.at + (i + 1 < p.tl.starts.count ? p.tl.starts[i + 1] : p.tl.length)
+        audio?.truncate(from: cut)
+        passes = Array(passes[...k]); passes[k].end = cut
+        let rest = Playback.continuation(old: p.tonics, at: i, new: currentTonics, loop: loop)
+        if let n = pass(rest, at: cut) { passes.append(n) }
+    }
+
     private func finishPlay() {
-        isPlaying = false; now = nil
+        isPlaying = false; now = nil; passes = []; playing = nil
         audio?.stopSequence(); lit = []
     }
 
@@ -205,8 +224,9 @@ struct Recorder {
 
     func toggleMetronome() {
         metronome.toggle()
+        if isPlaying { audio?.clicks = metronome; return }
         // ao vivo, sem tocar/gravar: clique livre
-        if !isPlaying && !isRecording && !countIn {
+        if !isRecording && !countIn {
             task?.cancel()
             task = metronome ? Task { await clickLoop() } : nil
         }

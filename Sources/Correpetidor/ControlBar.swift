@@ -97,7 +97,7 @@ private struct ProgressionForm: View {
                                                   set: { piano.from = $0; piano.to = max(piano.to, $0) }))
             NotePicker(label: "Até", note: Binding(get: { piano.to }, set: { piano.to = max($0, piano.from) }))
             Toggle("Voltar descendo", isOn: $piano.returnDown)
-            Stepper("Pausa: \(piano.pause, specifier: "%.1f") s", value: $piano.pause, in: 0...10, step: 0.5)
+            Stepper("Pausa: \(piano.pause) \(piano.pause == 1 ? "tempo" : "tempos")", value: $piano.pause, in: 0...8)
         }
         .padding().frame(width: 260)
     }

@@ -8,12 +8,14 @@ Um app de macOS que faz esse papel: um piano que toca seus vocalizes e escalas, 
 
 - **Toca pelo teclado do Mac**: `A S D F G H J K L ;` são as teclas brancas, `W E T Y U O P` as pretas, `Z`/`X` mudam a oitava e `Espaço` segura o som (sustain). O mouse também funciona.
 - **Grava rotinas**, não áudio: o que você toca vira uma sequência de notas em tempos de metrônomo.
+- **Toca músicas**: cada nota pode ter força (`velocity`) e a rotina pode ter pedal de sustain, com acordes e mãos separadas.
 - **Gera escalas** prontas: maior, menores, pentatônicas, cromática e arpejos.
 - **Três níveis de estudo**:
   1. a rotina simples;
-  2. **progressão**: repete subindo meio tom de uma nota até outra (e volta descendo, se quiser), com pausa para respirar;
+  2. **progressão**: repete subindo meio tom de uma nota até outra (e volta descendo, se quiser), com pausa para respirar (em tempos);
   3. **desafio**: o mesmo, em outro BPM.
-- **Loop** para repetir sem parar e **metrônomo** sincronizado com as notas.
+- **Loop** para repetir sem parar e **metrônomo** sincronizado com as notas, no relógio do áudio (precisão de amostra).
+- **Ajuste ao vivo**: BPM, metrônomo e progressão mudam durante o PLAY; a progressão nova entra na próxima tônica.
 - Lembra onde você parou (rotina, progressão, BPM).
 
 ## Rotinas criadas por IA

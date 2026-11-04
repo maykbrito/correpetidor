@@ -97,4 +97,23 @@ final class CorrepetidorCoreTests: XCTestCase {
         XCTAssertEqual(t.notes.map(\.note), [60, 62])
         XCTAssertEqual(Playback.timeline(r, tonics: [60, 62], pauseBeats: 0.5, loop: true).length, 6)
     }
+
+    func testTimelineState() {
+        let r = Routine(name: "s", bpm: 60, events: [NoteEvent(note: 60, beat: 0, duration: 1), NoteEvent(note: 64, beat: 0.5, duration: 1)])
+        let t = Playback.timeline(r, tonics: [60, 62], pauseBeats: 0, loop: false)
+        XCTAssertEqual(t.state(at: 0.7).lit, [60, 64]); XCTAssertEqual(t.state(at: 0.7).tonic, 0)
+        XCTAssertEqual(t.state(at: 2.1).lit, [62]); XCTAssertEqual(t.state(at: 2.1).tonic, 1)
+    }
+
+    func testContinuationAfterProgressionChange() {
+        // estende o "até" no meio: segue de onde estava
+        XCTAssertEqual(Playback.continuation(old: [60, 61, 62], at: 1, new: [60, 61, 62, 63, 64], loop: false), [62, 63, 64])
+        // sobe-desce: a ocorrência mais perto de onde estava (descendo)
+        XCTAssertEqual(Playback.continuation(old: [60, 61, 62, 61, 60], at: 3, new: [60, 61, 62, 61, 60], loop: false), [60])
+        // na última tônica: acaba, ou recomeça com loop
+        XCTAssertEqual(Playback.continuation(old: [60, 61], at: 1, new: [60, 61], loop: false), [])
+        XCTAssertEqual(Playback.continuation(old: [60, 61], at: 1, new: [60, 61], loop: true), [60, 61])
+        // tônica atual fora da lista nova: começa a nova
+        XCTAssertEqual(Playback.continuation(old: [60, 61], at: 0, new: [65, 66], loop: false), [65, 66])
+    }
 }

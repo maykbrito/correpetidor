@@ -53,6 +53,12 @@ public struct Timeline: Equatable, Sendable {
     public let notes: [SeqNote]
     public let starts: [Double]
     public let length: Double
+
+    /// O que a tela mostra num ponto da passada: teclas soando e índice da tônica atual.
+    public func state(at beat: Double) -> (lit: Set<Int>, tonic: Int?) {
+        let lit = Set(notes.filter { $0.beat <= beat && beat < $0.beat + $0.duration }.map(\.note))
+        return (lit, starts.lastIndex { $0 <= beat })
+    }
 }
 
 public enum Playback {
@@ -60,6 +66,15 @@ public enum Playback {
         guard to >= from else { return [from] }
         let up = Array(from...to)
         return returnDown ? up + up.dropLast().reversed() : up
+    }
+
+    /// Progressão mudada no meio do PLAY: o que toca depois da tônica `old[i]`.
+    /// Segue da mesma tônica na lista nova (a ocorrência mais perto de `i`, por causa do sobe-desce);
+    /// se ela não está na lista nova, recomeça do início. Vazio = acabou.
+    public static func continuation(old: [Int], at i: Int, new: [Int], loop: Bool) -> [Int] {
+        guard let k = new.indices.filter({ new[$0] == old[i] }).min(by: { abs($0 - i) < abs($1 - i) }) else { return new }
+        let rest = Array(new[(k + 1)...])
+        return rest.isEmpty && loop ? new : rest
     }
 
     /// Rotina e pausa ocupam beats inteiros: cada repetição cai no pulso do metrônomo.
