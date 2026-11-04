@@ -14,8 +14,8 @@ final class CorrepetidorCoreTests: XCTestCase {
             NoteEvent(note: 100, beat: 2, duration: 1),
         ])
         XCTAssertEqual(r.tonic, 60)
-        XCTAssertEqual(Playback.schedule(r, tonic: 70, bpm: 120), [
-            ScheduledNote(note: 72, start: 0.5, duration: 0.5), ScheduledNote(note: 70, start: 0, duration: 0.25),
+        XCTAssertEqual(Playback.timeline(r, tonics: [70], pauseBeats: 0, loop: false).notes, [
+            SeqNote(note: 72, beat: 1, duration: 1), SeqNote(note: 70, beat: 0, duration: 0.5),
         ])
     }
 
@@ -71,15 +71,30 @@ final class CorrepetidorCoreTests: XCTestCase {
         let json = #"{"name":"X","bpm":60,"events":[{"note":60,"beat":0,"duration":1}]}"#
         let r = try JSONDecoder().decode(Routine.self, from: Data(json.utf8))
         XCTAssertNil(r.pedal)
-        XCTAssertEqual(Playback.schedule(r, tonic: 60, bpm: 60)[0].velocity, 90)
+        XCTAssertEqual(Playback.timeline(r, tonics: [60], pauseBeats: 0, loop: false).notes[0].velocity, 90)
     }
 
     func testVelocityAndPedal() throws {
         let json = #"{"name":"X","bpm":60,"events":[{"note":60,"beat":0,"duration":1,"velocity":200}],"pedal":[{"down":0,"up":3}]}"#
         let r = try JSONDecoder().decode(Routine.self, from: Data(json.utf8))
-        XCTAssertEqual(Playback.schedule(r, tonic: 62, bpm: 120)[0].velocity, 127)
-        XCTAssertEqual(r.lengthBeats, 3)
-        let p = Playback.pedal(r, bpm: 120)
-        XCTAssertEqual(p.map(\.down), [0]); XCTAssertEqual(p.map(\.up), [1.5])
+        let t = Playback.timeline(r, tonics: [62], pauseBeats: 0, loop: false)
+        XCTAssertEqual(t.notes, [SeqNote(note: 62, beat: 0, duration: 3, velocity: 127)])   // pedal segura até 3
+        XCTAssertEqual(t.length, 3)
+    }
+
+    func testPedalStopsAtRepeatedKeyAndIgnoresNotesOutside() {
+        let r = Routine(name: "p", bpm: 60, events: [
+            NoteEvent(note: 60, beat: 0, duration: 0.5), NoteEvent(note: 60, beat: 1, duration: 0.5),
+            NoteEvent(note: 64, beat: 4, duration: 1),
+        ], pedal: [PedalEvent(down: 0, up: 3)])
+        XCTAssertEqual(Playback.withPedal(r).map(\.duration), [1, 2, 1])
+    }
+
+    func testTimelineProgressionPauseAndLoop() {
+        let r = Routine(name: "q", bpm: 60, events: [NoteEvent(note: 60, beat: 0, duration: 1.5)])
+        let t = Playback.timeline(r, tonics: [60, 62], pauseBeats: 0.5, loop: false)
+        XCTAssertEqual(t.starts, [0, 3]); XCTAssertEqual(t.length, 5)
+        XCTAssertEqual(t.notes.map(\.note), [60, 62])
+        XCTAssertEqual(Playback.timeline(r, tonics: [60, 62], pauseBeats: 0.5, loop: true).length, 6)
     }
 }

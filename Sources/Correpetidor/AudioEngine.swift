@@ -1,14 +1,16 @@
 import AppKit
 import AVFoundation
+import CorrepetidorCore
 
 /// Sampler GM do sistema: piano no canal 0, metrônomo na percussão (canal 9).
 @MainActor final class AudioEngine {
     private let engine = AVAudioEngine()
     private let piano = AVAudioUnitSampler()
     private let drums = AVAudioUnitSampler()
-    private var held: Set<Int> = []
+    private var sequencer: AVAudioSequencer?
+    /// Pedal MIDI (CC64): segura tanto as notas ao vivo quanto as do sequenciador.
     var sustain = false {
-        didSet { if !sustain { held.forEach { piano.stopNote(UInt8($0), onChannel: 0) }; held = [] } }
+        didSet { piano.sendController(64, withValue: sustain ? 127 : 0, onChannel: 0) }
     }
 
     init() throws {
@@ -35,10 +37,46 @@ import AVFoundation
         try? engine.start()
     }
 
-    func noteOn(_ n: Int, velocity: Int = 90) { held.remove(n); piano.startNote(UInt8(n), withVelocity: UInt8(velocity), onChannel: 0) }
+    func noteOn(_ n: Int, velocity: Int = 90) { piano.startNote(UInt8(n), withVelocity: UInt8(velocity), onChannel: 0) }
 
-    func noteOff(_ n: Int) {
-        if sustain { held.insert(n) } else { piano.stopNote(UInt8(n), onChannel: 0) }
+    func noteOff(_ n: Int) { piano.stopNote(UInt8(n), onChannel: 0) }
+
+    /// Entrega a passada inteira ao sequenciador, que toca pelo relógio do áudio (precisão de amostra).
+    func play(_ t: Timeline, bpm: Double, loop: Bool, clicks: Bool) throws {
+        stopSequence()
+        let seq = AVAudioSequencer(audioEngine: engine)
+        seq.tempoTrack.addEvent(AVExtendedTempoEvent(tempo: bpm), at: 0)
+        let notes = seq.createAndAppendTrack()
+        notes.destinationAudioUnit = piano
+        for n in t.notes {
+            notes.addEvent(AVMIDINoteEvent(channel: 0, key: UInt32(n.note), velocity: UInt32(n.velocity), duration: n.duration), at: n.beat)
+        }
+        var tracks = [notes]
+        if clicks {
+            let c = seq.createAndAppendTrack()
+            c.destinationAudioUnit = drums
+            for i in 0..<Int(t.length) {   // wood block alto no 1 do compasso
+                c.addEvent(AVMIDINoteEvent(channel: 9, key: i % 4 == 0 ? 76 : 77, velocity: 110, duration: 0.1), at: Double(i))
+            }
+            tracks.append(c)
+        }
+        for tr in tracks {
+            tr.lengthInBeats = t.length
+            if loop {
+                tr.loopRange = AVBeatRange(start: 0, length: t.length)
+                tr.numberOfLoops = AVMusicTrackLoopCount.forever.rawValue
+                tr.isLoopingEnabled = true
+            }
+        }
+        seq.prepareToPlay()
+        try seq.start()
+        sequencer = seq
+    }
+
+    func stopSequence() {
+        guard let seq = sequencer else { return }
+        seq.stop(); sequencer = nil
+        for n in 21...108 { piano.stopNote(UInt8(n), onChannel: 0) }   // notas que o stop deixou presas
     }
 
     func click(accent: Bool = false) {

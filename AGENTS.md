@@ -14,9 +14,9 @@ swift test                    # testes do core (XCTest)
 
 | Arquivo | O quê |
 |---|---|
-| `Sources/CorrepetidorCore/CorrepetidorCore.swift` | Lógica pura e testada: `Routine`/`NoteEvent`, `Playback.tonics`/`schedule`, `ScaleGenerator`, `KeyMap`, `noteName`, `RoutineStore` (pasta JSON + file watcher + `AGENTS.md` das rotinas) |
+| `Sources/CorrepetidorCore/CorrepetidorCore.swift` | Lógica pura e testada: `Routine`/`NoteEvent`, `Playback.tonics`/`timeline` (passada inteira em beats, pedal já virado duração), `ScaleGenerator`, `KeyMap`, `noteName`, `RoutineStore` (pasta JSON + file watcher + `AGENTS.md` das rotinas) |
 | `Sources/Correpetidor/Piano.swift` | Estado central (`ObservableObject`): noteOn/Off, gravação (`Recorder`), PLAY/progressão/loop, metrônomo, persistência do último estado |
-| `Sources/Correpetidor/AudioEngine.swift` | `AVAudioUnitSampler` com o banco GM do sistema (`gs_instruments.dls`); piano no canal 0, clique na percussão (canal 9); religa após sleep/troca de saída |
+| `Sources/Correpetidor/AudioEngine.swift` | `AVAudioUnitSampler` com o banco GM do sistema (`gs_instruments.dls`); piano no canal 0, clique na percussão (canal 9); `AVAudioSequencer` toca a passada (notas + metrônomo); SUSTAIN = CC64; religa após sleep/troca de saída |
 | `Sources/Correpetidor/ControlBar.swift` | Barra superior: RECORD + ROTINA à esquerda; PROGRESSÃO, SUSTAIN, SHOW, METRÔNOMO fixos à direita |
 | `Sources/Correpetidor/PianoKeyboard.swift` | Teclado Dó2–Dó6, teclas acendem, faixa do PC destacada |
 | `Sources/Correpetidor/CorrepetidorApp.swift` | `@main`, tamanho padrão da janela, input do teclado do Mac (`KeyInput`), `appIcon()` (ícone desenhado em código, reaproveitado pelo build-app.sh) |
@@ -28,7 +28,7 @@ swift test                    # testes do core (XCTest)
 - **Lógica nova que dá para testar vai no Core** (puro, sem AppKit/AVFoundation) com teste; o app só orquestra.
 - MIDI 60 = Dó4. Nomes em português: Dó Dó# Ré Ré# Mi Fá Fá# Sol Sol# Lá Lá# Si.
 - Rotinas guardam **tempos (beats)**, nunca segundos; BPM converte na reprodução.
-- **Timing:** tudo que toca usa um relógio único — `Task.sleep(until: t0 + …)` a partir do mesmo `ContinuousClock.Instant`. Sempre com `tolerance: .zero`: sem ela o macOS dá folga proporcional à espera (~6%, já mediu 490 ms de atraso). Nunca `sleep(for:)` encadeado (acumula atraso e dessincroniza do metrônomo). Duração da rotina e pausa são arredondadas para tempos inteiros.
+- **Timing:** o PLAY é do `AVAudioSequencer` (relógio do áudio, precisão de amostra; medido 0,02 ms contra até 11 ms com tasks). A tela (teclas acesas, tônica atual) só acompanha com `Task.sleep(until: t0 + …, tolerance: .zero)` a partir de um `ContinuousClock.Instant`; sem `tolerance: .zero` o macOS atrasa proporcional à espera (já mediu 490 ms). Metrônomo livre e contagem do REC seguem esse mesmo padrão. Nunca `sleep(for:)` encadeado. Duração da rotina e pausa são arredondadas para tempos inteiros.
 - UI: só ícone (SF Symbols) **ou** só texto por botão; nada de emoji. Layout minimalista; os controles da direita não podem se mover quando a rotina muda.
 - Último estado em `UserDefaults` (chave `state`), salvo com debounce; metrônomo sempre abre desligado.
 - Dados do usuário: `~/Library/Application Support/Correpetidor/rotinas/` (um `.json` por rotina; formato documentado no `AGENTS.md` de lá, regravado a cada abertura a partir de `RoutineStore.agentsDoc`: edite o `agentsDoc`, nunca o arquivo). Mudou o formato? Atualize `agentsDoc`, os testes e este arquivo.

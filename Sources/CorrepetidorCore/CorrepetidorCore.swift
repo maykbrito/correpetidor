@@ -37,14 +37,22 @@ public struct Routine: Codable, Equatable, Identifiable, Sendable {
     public var tonic: Int? { events.min { ($0.beat, $0.note) < ($1.beat, $1.note) }?.note }
 }
 
-public struct ScheduledNote: Equatable, Sendable {
+/// Nota pronta para o sequenciador, em beats, já transposta e com o pedal aplicado.
+public struct SeqNote: Equatable, Sendable {
     public let note: Int
-    public let start: TimeInterval
-    public let duration: TimeInterval
+    public let beat: Double
+    public let duration: Double
     public let velocity: Int
-    public init(note: Int, start: TimeInterval, duration: TimeInterval, velocity: Int = 90) {
-        self.note = note; self.start = start; self.duration = duration; self.velocity = velocity
+    public init(note: Int, beat: Double, duration: Double, velocity: Int = 90) {
+        self.note = note; self.beat = beat; self.duration = duration; self.velocity = velocity
     }
+}
+
+/// Uma passada inteira da progressão: notas, beat de início de cada tônica e duração total.
+public struct Timeline: Equatable, Sendable {
+    public let notes: [SeqNote]
+    public let starts: [Double]
+    public let length: Double
 }
 
 public enum Playback {
@@ -54,20 +62,34 @@ public enum Playback {
         return returnDown ? up + up.dropLast().reversed() : up
     }
 
-    public static func schedule(_ routine: Routine, tonic: Int, bpm: Double) -> [ScheduledNote] {
-        let shift = tonic - (routine.tonic ?? tonic)
-        let spb = 60 / bpm
-        return routine.events.compactMap { e in
-            let n = e.note + shift
-            return (21...108).contains(n) ? ScheduledNote(note: n, start: e.beat * spb, duration: e.duration * spb,
-                                                       velocity: min(127, max(1, e.velocity ?? 90))) : nil
+    /// Rotina e pausa ocupam beats inteiros: cada repetição cai no pulso do metrônomo.
+    /// Com `loop`, a pausa também vem depois da última tônica (antes de recomeçar).
+    public static func timeline(_ r: Routine, tonics: [Int], pauseBeats: Double, loop: Bool) -> Timeline {
+        let len = r.lengthBeats.rounded(.up), pause = pauseBeats.rounded(.up)
+        let one = withPedal(r)
+        var notes: [SeqNote] = [], starts: [Double] = [], beat = 0.0
+        for (i, t) in tonics.enumerated() {
+            let shift = t - (r.tonic ?? t)
+            starts.append(beat)
+            notes += one.compactMap { e in
+                let n = e.note + shift
+                return (21...108).contains(n) ? SeqNote(note: n, beat: beat + e.beat, duration: e.duration, velocity: e.velocity) : nil
+            }
+            beat += len + (i + 1 < tonics.count || loop ? pause : 0)
         }
+        return Timeline(notes: notes, starts: starts, length: beat)
     }
 
-    /// Pedal em segundos (down, up).
-    public static func pedal(_ routine: Routine, bpm: Double) -> [(down: TimeInterval, up: TimeInterval)] {
-        let spb = 60 / bpm
-        return (routine.pedal ?? []).map { ($0.down * spb, $0.up * spb) }
+    /// Pedal vira duração: nota solta com o pedal pisado soa até o pedal subir
+    /// (ou até a mesma tecla ser tocada de novo).
+    static func withPedal(_ r: Routine) -> [SeqNote] {
+        let pedal = r.pedal ?? []
+        return r.events.map { e in
+            var end = e.beat + e.duration
+            if let p = pedal.first(where: { $0.down <= end && end < $0.up }) { end = p.up }
+            if let next = r.events.filter({ $0.note == e.note && $0.beat > e.beat }).map(\.beat).min() { end = min(end, next) }
+            return SeqNote(note: e.note, beat: e.beat, duration: end - e.beat, velocity: min(127, max(1, e.velocity ?? 90)))
+        }
     }
 }
 
