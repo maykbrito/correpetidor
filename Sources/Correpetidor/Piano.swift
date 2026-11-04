@@ -38,7 +38,8 @@ struct Recorder {
     @Published var bpm: Double = 80
     @Published var showNotes = true
     @Published var showKeys = true
-    @Published var selected: Routine? { didSet { resetProgression() } }
+    /// Trocar ou apagar a rotina para o que estiver tocando (senão o loop segue sem botão de parar).
+    @Published var selected: Routine? { didSet { stop(); resetProgression() } }
     @Published var from = 60
     @Published var to = 60
     @Published var returnDown = false
@@ -159,59 +160,43 @@ struct Recorder {
         guard let r = selected else { return }
         stopRecord()
         let tonics = Playback.tonics(from: from, to: max(to, from), returnDown: returnDown)
-        let bpm = bpm, progression = tonics.count > 1
-        let spb = 60 / bpm
-        // rotina e pausa em tempos inteiros: cada repetição cai no pulso do metrônomo
-        let lengthBeats = r.lengthBeats.rounded(.up)
-        let pauseBeats = (pause / spb).rounded(.up)
+        let spb = 60 / bpm, loop = loop, progression = tonics.count > 1
+        let tl = Playback.timeline(r, tonics: tonics, pauseBeats: pause / spb, loop: loop)
         task?.cancel()   // derruba metrônomo livre, se houver
+        do { try audio?.play(tl, bpm: bpm, loop: loop, clicks: metronome) } catch { return }
         isPlaying = true
+        // O som é do sequenciador; aqui só a tela (teclas acesas, tônica atual) acompanha.
         task = Task {
-            let t0 = ContinuousClock.now
-            let metro = metronome ? Task { await clickLoop(from: t0, bpm: bpm) } : nil
-            defer { metro?.cancel() }
-            var beat = 0.0
+            var t0 = ContinuousClock.now
             repeat {
-                for (i, t) in tonics.enumerated() {
-                    if Task.isCancelled { break }
-                    let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
-                    if progression { now = (t, next) }
-                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm), pedal: Playback.pedal(r, bpm: bpm), at: t0 + .seconds(beat * spb))
-                    beat += lengthBeats + (next != nil ? pauseBeats : 0)
-                    guard (try? await Task.sleep(until: t0 + .seconds(beat * spb), tolerance: .zero)) != nil else { break }
+                let start = t0
+                await withTaskGroup(of: Void.self) { g in
+                    for (i, b) in tl.starts.enumerated() where progression {
+                        let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
+                        g.addTask { @MainActor in
+                            guard (try? await Task.sleep(until: start + .seconds(b * spb), tolerance: .zero)) != nil else { return }
+                            self.now = (tonics[i], next)
+                        }
+                    }
+                    for n in tl.notes {
+                        g.addTask { @MainActor in
+                            guard (try? await Task.sleep(until: start + .seconds(n.beat * spb), tolerance: .zero)) != nil else { return }
+                            self.lit.insert(n.note)
+                            try? await Task.sleep(until: start + .seconds((n.beat + n.duration) * spb), tolerance: .zero)
+                            self.lit.remove(n.note)
+                        }
+                    }
                 }
+                t0 = start + .seconds(tl.length * spb)
+                guard (try? await Task.sleep(until: t0, tolerance: .zero)) != nil else { break }
             } while loop && !Task.isCancelled
             if !Task.isCancelled { finishPlay() }
         }
     }
 
-    private func playOnce(_ notes: [ScheduledNote], pedal: [(down: TimeInterval, up: TimeInterval)],
-                          at start: ContinuousClock.Instant) async {
-        await withTaskGroup(of: Void.self) { g in
-            // pedal da rotina soma com o SUSTAIN do usuário: soltar volta ao estado do botão
-            for p in pedal {
-                g.addTask { @MainActor in
-                    guard (try? await Task.sleep(until: start + .seconds(p.down), tolerance: .zero)) != nil else { return }
-                    self.audio?.sustain = true
-                    try? await Task.sleep(until: start + .seconds(p.up), tolerance: .zero)
-                    self.audio?.sustain = self.sustain
-                }
-            }
-            for s in notes {
-                g.addTask { @MainActor in
-                    guard (try? await Task.sleep(until: start + .seconds(s.start), tolerance: .zero)) != nil else { return }
-                    self.noteOn(s.note, velocity: s.velocity)
-                    try? await Task.sleep(until: start + .seconds(s.start + s.duration), tolerance: .zero)
-                    self.noteOff(s.note)
-                }
-            }
-        }
-    }
-
     private func finishPlay() {
         isPlaying = false; now = nil
-        for n in lit { noteOff(n) }
-        audio?.sustain = sustain
+        audio?.stopSequence(); lit = []
     }
 
     func stop() {
