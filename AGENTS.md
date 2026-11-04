@@ -28,7 +28,7 @@ swift test                    # testes do core (XCTest)
 - **Lógica nova que dá para testar vai no Core** (puro, sem AppKit/AVFoundation) com teste; o app só orquestra.
 - MIDI 60 = Dó4. Nomes em português: Dó Dó# Ré Ré# Mi Fá Fá# Sol Sol# Lá Lá# Si.
 - Rotinas guardam **tempos (beats)**, nunca segundos; BPM converte na reprodução.
-- **Timing:** tudo que toca usa um relógio único — `Task.sleep(until: t0 + …)` a partir do mesmo `ContinuousClock.Instant`. Nunca `sleep(for:)` encadeado (acumula atraso e dessincroniza do metrônomo). Duração da rotina e pausa são arredondadas para tempos inteiros.
+- **Timing:** tudo que toca usa um relógio único — `Task.sleep(until: t0 + …)` a partir do mesmo `ContinuousClock.Instant`. Sempre com `tolerance: .zero`: sem ela o macOS dá folga proporcional à espera (~6%, já mediu 490 ms de atraso). Nunca `sleep(for:)` encadeado (acumula atraso e dessincroniza do metrônomo). Duração da rotina e pausa são arredondadas para tempos inteiros.
 - UI: só ícone (SF Symbols) **ou** só texto por botão; nada de emoji. Layout minimalista; os controles da direita não podem se mover quando a rotina muda.
 - Último estado em `UserDefaults` (chave `state`), salvo com debounce; metrônomo sempre abre desligado.
 - Dados do usuário: `~/Library/Application Support/Correpetidor/rotinas/` (um `.json` por rotina; formato documentado no `AGENTS.md` de lá, regravado a cada abertura a partir de `RoutineStore.agentsDoc`: edite o `agentsDoc`, nunca o arquivo). Mudou o formato? Atualize `agentsDoc`, os testes e este arquivo.
