@@ -24,6 +24,7 @@ swift test                    # testes do core (XCTest)
 
 ## Regras e convenções
 
+- **Escolha de design com mais de um caminho razoável** (ex.: pedal como campo da nota ou como eventos próprios; onde um controle entra na barra) → apresente as opções com uma recomendação e pergunte antes de implementar. Detalhe sem impacto no uso ou nos dados, decida e siga.
 - **Lógica nova que dá para testar vai no Core** (puro, sem AppKit/AVFoundation) com teste; o app só orquestra.
 - MIDI 60 = Dó4. Nomes em português: Dó Dó# Ré Ré# Mi Fá Fá# Sol Sol# Lá Lá# Si.
 - Rotinas guardam **tempos (beats)**, nunca segundos; BPM converte na reprodução.
