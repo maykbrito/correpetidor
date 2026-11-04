@@ -73,11 +73,13 @@ struct Recorder {
     }
 
     // MARK: metrônomo
-    private func clickLoop() async {
+    /// Cliques em tempos absolutos a partir de `t0` (sem acumular atraso).
+    private func clickLoop(from t0: ContinuousClock.Instant = .now, bpm fixed: Double? = nil) async {
         var i = 0
         while !Task.isCancelled {
+            let spb = 60 / (fixed ?? bpm)
+            guard (try? await Task.sleep(until: t0 + .seconds(Double(i) * spb))) != nil else { return }
             audio?.click(accent: i % 4 == 0); i += 1
-            try? await Task.sleep(for: .seconds(60 / bpm))
         }
     }
 
@@ -87,13 +89,15 @@ struct Recorder {
         stop(); task?.cancel()
         countIn = true
         task = Task {
+            let t0 = ContinuousClock.now, spb = 60 / bpm
             for i in 0..<4 {
+                guard (try? await Task.sleep(until: t0 + .seconds(Double(i) * spb))) != nil else { return }
                 audio?.click(accent: i == 0)
-                try? await Task.sleep(for: .seconds(60 / bpm))
-                if Task.isCancelled { return }
             }
+            let start = t0 + .seconds(4 * spb)
+            guard (try? await Task.sleep(until: start)) != nil else { return }
             countIn = false; isRecording = true; recorder.begin()
-            if metronome { await clickLoop() }
+            if metronome { await clickLoop(from: start) }
         }
     }
 
@@ -124,31 +128,39 @@ struct Recorder {
         guard let r = selected else { return }
         stopRecord()
         let tonics = Playback.tonics(from: from, to: max(to, from), returnDown: returnDown)
-        let bpm = bpm, pause = pause, progression = tonics.count > 1
+        let bpm = bpm, progression = tonics.count > 1
+        let spb = 60 / bpm
+        // rotina e pausa em tempos inteiros: cada repetição cai no pulso do metrônomo
+        let lengthBeats = (r.events.map { $0.beat + $0.duration }.max() ?? 0).rounded(.up)
+        let pauseBeats = (pause / spb).rounded(.up)
+        task?.cancel()   // derruba metrônomo livre, se houver
         isPlaying = true
         task = Task {
-            let metro = metronome ? Task { await clickLoop() } : nil
+            let t0 = ContinuousClock.now
+            let metro = metronome ? Task { await clickLoop(from: t0, bpm: bpm) } : nil
             defer { metro?.cancel() }
+            var beat = 0.0
             repeat {
                 for (i, t) in tonics.enumerated() {
                     if Task.isCancelled { break }
                     let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
                     if progression { now = (t, next) }
-                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm))
-                    if next != nil { try? await Task.sleep(for: .seconds(pause)) }
+                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm), at: t0 + .seconds(beat * spb))
+                    beat += lengthBeats + (next != nil ? pauseBeats : 0)
+                    guard (try? await Task.sleep(until: t0 + .seconds(beat * spb))) != nil else { break }
                 }
             } while loop && !Task.isCancelled
             if !Task.isCancelled { finishPlay() }
         }
     }
 
-    private func playOnce(_ notes: [ScheduledNote]) async {
+    private func playOnce(_ notes: [ScheduledNote], at start: ContinuousClock.Instant) async {
         await withTaskGroup(of: Void.self) { g in
             for s in notes {
                 g.addTask { @MainActor in
-                    guard (try? await Task.sleep(for: .seconds(s.start))) != nil else { return }
+                    guard (try? await Task.sleep(until: start + .seconds(s.start))) != nil else { return }
                     self.noteOn(s.note)
-                    try? await Task.sleep(for: .seconds(s.duration))
+                    try? await Task.sleep(until: start + .seconds(s.start + s.duration))
                     self.noteOff(s.note)
                 }
             }
