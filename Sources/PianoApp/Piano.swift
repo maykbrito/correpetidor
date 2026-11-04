@@ -58,6 +58,37 @@ struct Recorder {
         do { audio = try AudioEngine(); audioError = nil }
         catch { audio = nil; audioError = "Falha ao iniciar o áudio: \(error.localizedDescription)" }
         storeSink = store.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        restore()
+        saveSink = objectWillChange.debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .sink { [weak self] in self?.persist() }
+    }
+
+    // MARK: último estado (metrônomo volta desligado para não clicar ao abrir)
+    private var saveSink: AnyCancellable?
+    private let defaults = UserDefaults.standard
+
+    private func persist() {
+        let state: [String: Any] = [
+            "routine": selected?.name ?? "", "from": from, "to": to, "returnDown": returnDown,
+            "pause": pause, "loop": loop, "bpm": bpm, "octave": octave, "sustain": sustain,
+            "showNotes": showNotes, "showKeys": showKeys,
+        ]
+        defaults.set(state, forKey: "state")
+    }
+
+    private func restore() {
+        guard let s = defaults.dictionary(forKey: "state") else { return }
+        selected = store.routines.first { $0.name == s["routine"] as? String }   // reseta from/to/bpm; sobrescritos abaixo
+        if let v = s["from"] as? Int { from = v }
+        if let v = s["to"] as? Int { to = v }
+        if let v = s["returnDown"] as? Bool { returnDown = v }
+        if let v = s["pause"] as? Double { pause = v }
+        if let v = s["loop"] as? Bool { loop = v }
+        if let v = s["bpm"] as? Double { bpm = v }
+        if let v = s["octave"] as? Int { octave = v }
+        if let v = s["sustain"] as? Bool { sustain = v }
+        if let v = s["showNotes"] as? Bool { showNotes = v }
+        if let v = s["showKeys"] as? Bool { showKeys = v }
     }
 
     // MARK: notas (ponto central)
