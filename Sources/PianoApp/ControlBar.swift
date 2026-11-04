@@ -39,7 +39,7 @@ struct ControlBar: View {
                 .popover(isPresented: $showScale) { ScaleForm { showScale = false } }
             }
             group("PROGRESSÃO") {
-                Text(piano.to > piano.from ? "\(noteName(piano.from))→\(noteName(piano.to))" : "—")
+                if piano.to > piano.from { Text("\(noteName(piano.from))→\(noteName(piano.to))") }
                 Button { showProgression = true } label: { Image(systemName: "slider.horizontal.3") }
                     .help("Configurar progressão")
                     .popover(isPresented: $showProgression) { ProgressionForm() }
@@ -55,8 +55,8 @@ struct ControlBar: View {
                 Button { piano.toggleMetronome() } label: { Image(systemName: piano.metronome ? "metronome.fill" : "metronome") }
                     .help("Metrônomo")
                 Text("\(Int(piano.bpm))").monospacedDigit().frame(width: 32)
-                Button { piano.bpm = max(40, piano.bpm - 1) } label: { Image(systemName: "minus") }
-                Button { piano.bpm = min(240, piano.bpm + 1) } label: { Image(systemName: "plus") }
+                Button { piano.bpm = max(40, piano.bpm - 1) } label: { Image(systemName: "minus").frame(width: 14, height: 14) }
+                Button { piano.bpm = min(240, piano.bpm + 1) } label: { Image(systemName: "plus").frame(width: 14, height: 14) }
             }
         }
         .overlay(alignment: .bottom) {
