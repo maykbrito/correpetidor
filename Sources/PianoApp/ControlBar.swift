@@ -35,7 +35,7 @@ struct ControlBar: View {
                     Button("Gerar escala…") { showScale = true }
                     Button("Apagar", role: .destructive) { piano.deleteSelected() }.disabled(piano.selected == nil)
                 }
-                .frame(width: 180)
+                .fixedSize()
                 .popover(isPresented: $showScale) { ScaleForm { showScale = false } }
             }
             group("PROGRESSÃO") {
