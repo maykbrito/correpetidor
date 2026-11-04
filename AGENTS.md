@@ -39,7 +39,7 @@ Edite os JSON da pasta de rotinas seguindo o `AGENTS.md` de lá; o app recarrega
 
 ## Versionamento
 
-O Mayk não é fluente em versionamento: **o agente decide o número, explica em uma linha por quê e pede o ok antes de criar a tag.**
+**O agente decide o número, explica em uma linha por quê e pede o ok antes de criar a tag.**
 
 ### App — SemVer `MAIOR.MENOR.CORREÇÃO`
 
