@@ -30,7 +30,7 @@ swift test                    # testes do core (XCTest)
 - **Timing:** tudo que toca usa um relógio único — `Task.sleep(until: t0 + …)` a partir do mesmo `ContinuousClock.Instant`. Nunca `sleep(for:)` encadeado (acumula atraso e dessincroniza do metrônomo). Duração da rotina e pausa são arredondadas para tempos inteiros.
 - UI: só ícone (SF Symbols) **ou** só texto por botão; nada de emoji. Layout minimalista; os controles da direita não podem se mover quando a rotina muda.
 - Último estado em `UserDefaults` (chave `state`), salvo com debounce; metrônomo sempre abre desligado.
-- Dados do usuário: `~/Library/Application Support/Correpetidor/rotinas/` (um `.json` por rotina; formato documentado no `AGENTS.md` gerado lá por `RoutineStore.agentsDoc`). Mudou o formato? Atualize `agentsDoc`, os testes e este arquivo.
+- Dados do usuário: `~/Library/Application Support/Correpetidor/rotinas/` (um `.json` por rotina; formato documentado no `AGENTS.md` de lá, regravado a cada abertura a partir de `RoutineStore.agentsDoc`: edite o `agentsDoc`, nunca o arquivo). Mudou o formato? Atualize `agentsDoc`, os testes e este arquivo.
 - Código mínimo, sem dependências externas. Atalhos deliberados levam comentário `ponytail:` com o limite e o upgrade.
 
 ## Criar/ajustar rotinas (sem mexer no código)

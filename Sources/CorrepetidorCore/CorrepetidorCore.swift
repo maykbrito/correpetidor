@@ -125,7 +125,8 @@ public func noteName(_ note: Int) -> String {
         let fm = FileManager.default
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         let agents = directory.appendingPathComponent("AGENTS.md")
-        if !fm.fileExists(atPath: agents.path) { try? Self.agentsDoc.write(to: agents, atomically: true, encoding: .utf8) }
+        // sempre regrava: o doc acompanha o formato da versão instalada
+        try? Self.agentsDoc.write(to: agents, atomically: true, encoding: .utf8)
         reload()
         let fd = open(directory.path, O_EVTONLY)
         if fd >= 0 {
