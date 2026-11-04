@@ -10,8 +10,11 @@ struct ControlBar: View {
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             group("RECORD") {
-                Button(piano.countIn ? "…" : piano.isRecording ? "■ REC" : "● REC") { piano.toggleRecord() }
-                    .tint(.red)
+                Button { piano.toggleRecord() } label: {
+                    Image(systemName: piano.countIn ? "ellipsis" : piano.isRecording ? "stop.circle.fill" : "record.circle")
+                        .foregroundStyle(piano.isRecording || piano.countIn ? .red : .primary)
+                }
+                .help("Gravar")
                     .popover(isPresented: Binding(get: { piano.pendingRecording != nil },
                                                   set: { if !$0 { piano.pendingRecording = nil } })) {
                         VStack {
@@ -20,9 +23,10 @@ struct ControlBar: View {
                             HStack { Button("Descartar") { piano.pendingRecording = nil }; Button("Salvar", action: saveRec) }
                         }.padding()
                     }
-                Button(piano.isPlaying ? "■ STOP" : "▶ PLAY") { piano.togglePlay() }
+                Button { piano.togglePlay() } label: { Image(systemName: piano.isPlaying ? "stop.fill" : "play.fill") }
+                    .help(piano.isPlaying ? "Parar" : "Tocar rotina")
                     .disabled(piano.selected == nil)
-                Toggle("🔁 LOOP", isOn: $piano.loop).toggleStyle(.button)
+                Toggle(isOn: $piano.loop) { Image(systemName: "repeat") }.toggleStyle(.button).help("Loop")
             }
             group("ROTINA") {
                 Menu(piano.selected?.name ?? "Escolher…") {
@@ -36,7 +40,8 @@ struct ControlBar: View {
             }
             group("PROGRESSÃO") {
                 Text(piano.to > piano.from ? "\(noteName(piano.from))→\(noteName(piano.to))" : "—")
-                Button("⚙") { showProgression = true }
+                Button { showProgression = true } label: { Image(systemName: "slider.horizontal.3") }
+                    .help("Configurar progressão")
                     .popover(isPresented: $showProgression) { ProgressionForm() }
             }
             group("SUSTAIN") {
@@ -47,10 +52,11 @@ struct ControlBar: View {
                 Toggle("PC KEYS", isOn: $piano.showKeys).toggleStyle(.button)
             }
             group("METRÔNOMO") {
-                Button(piano.metronome ? "■" : "▶") { piano.toggleMetronome() }
+                Button { piano.toggleMetronome() } label: { Image(systemName: piano.metronome ? "metronome.fill" : "metronome") }
+                    .help("Metrônomo")
                 Text("\(Int(piano.bpm))").monospacedDigit().frame(width: 32)
-                Button("-") { piano.bpm = max(40, piano.bpm - 1) }
-                Button("+") { piano.bpm = min(240, piano.bpm + 1) }
+                Button { piano.bpm = max(40, piano.bpm - 1) } label: { Image(systemName: "minus") }
+                Button { piano.bpm = min(240, piano.bpm + 1) } label: { Image(systemName: "plus") }
             }
         }
         .overlay(alignment: .bottom) {
