@@ -4,6 +4,9 @@ set -e
 cd "$(dirname "$0")/.."
 APP=dist/Correpetidor.app
 TMP=$(mktemp -d)
+# versão = última tag git (v1.2.3 → 1.2.3); build = nº de commits
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); VERSION=${VERSION:-0.0.0}
+BUILD=$(git rev-list --count HEAD)
 
 swift build -c release
 rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -39,12 +42,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>Correpetidor</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$BUILD</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
 codesign --force --sign - "$APP"   # assinatura ad-hoc (uso local)
 rm -rf "$TMP"
-echo "ok: $APP"
+echo "ok: $APP ($VERSION build $BUILD)"

@@ -37,6 +37,38 @@ swift test                    # testes do core (XCTest)
 
 Edite os JSON da pasta de rotinas seguindo o `AGENTS.md` de lá; o app recarrega sozinho.
 
+## Versionamento
+
+O Mayk não é fluente em versionamento: **o agente decide o número, explica em uma linha por quê e pede o ok antes de criar a tag.**
+
+### App — SemVer `MAIOR.MENOR.CORREÇÃO`
+
+| Mudança | Sobe | Exemplo |
+|---|---|---|
+| Conserta bug, sem mudar o uso | CORREÇÃO `1.0.0 → 1.0.1` | metrônomo atrasando |
+| Algo novo, tudo que existia continua funcionando | MENOR `1.0.1 → 1.1.0` | `velocity`/pedal opcionais, tocar músicas |
+| Quebra algo (rotinas antigas, atalhos, comportamento esperado) | MAIOR `1.1.0 → 2.0.0` | formato da rotina incompatível |
+
+- Commits em Conventional Commits, que já apontam o nível: `fix:` → correção, `feat:` → menor, `feat!:`/`BREAKING CHANGE:` → maior. `docs:`/`chore:`/`refactor:` sozinhos não geram release.
+- **A tag git é a única fonte da versão** (`vX.Y.Z`); `build-app.sh` lê dela. Não escreva versão em nenhum outro lugar.
+
+### Formato das rotinas (dados do usuário — nunca quebrar à toa)
+
+- Campo novo é **sempre opcional**, com padrão que reproduz o comportamento antigo (ex.: `velocity` ausente = 90). Isso é MENOR e não exige migração.
+- Renomear/remover campo ou mudar significado é MAIOR: só com migração automática das rotinas existentes no `RoutineStore` + teste com um JSON antigo.
+- Toda mudança de formato atualiza juntos: `Routine`, `RoutineStore.agentsDoc`, os testes e este arquivo.
+- Teste de compatibilidade obrigatório: um JSON no formato antigo continua decodificando.
+
+### Publicar uma versão
+
+```sh
+swift test                                   # verde, senão não publica
+git tag vX.Y.Z && git push --tags
+./scripts/build-app.sh
+ditto -c -k --keepParent dist/Correpetidor.app dist/Correpetidor.zip
+gh release create vX.Y.Z dist/Correpetidor.zip --generate-notes
+```
+
 ## Ideias futuras
 
 Rotinas como músicas (acordes já funcionam), `velocity`/pedal opcionais por nota, importar `.mid`, modo estudo que espera a nota certa. Fora do escopo hoje: iOS, MIDI USB, IA dentro do app.
