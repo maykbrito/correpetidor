@@ -35,7 +35,7 @@ import AVFoundation
         try? engine.start()
     }
 
-    func noteOn(_ n: Int) { held.remove(n); piano.startNote(UInt8(n), withVelocity: 90, onChannel: 0) }
+    func noteOn(_ n: Int, velocity: Int = 90) { held.remove(n); piano.startNote(UInt8(n), withVelocity: UInt8(velocity), onChannel: 0) }
 
     func noteOff(_ n: Int) {
         if sustain { held.insert(n) } else { piano.stopNote(UInt8(n), onChannel: 0) }

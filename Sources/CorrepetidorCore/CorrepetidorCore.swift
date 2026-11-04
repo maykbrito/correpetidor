@@ -5,15 +5,34 @@ public struct NoteEvent: Codable, Equatable, Sendable {
     public var note: Int
     public var beat: Double
     public var duration: Double
-    public init(note: Int, beat: Double, duration: Double) { self.note = note; self.beat = beat; self.duration = duration }
+    /// 1–127; ausente = 90.
+    public var velocity: Int?
+    public init(note: Int, beat: Double, duration: Double, velocity: Int? = nil) {
+        self.note = note; self.beat = beat; self.duration = duration; self.velocity = velocity
+    }
+}
+
+/// Pedal de sustain pisado de `down` até `up` (em beats).
+public struct PedalEvent: Codable, Equatable, Sendable {
+    public var down: Double
+    public var up: Double
+    public init(down: Double, up: Double) { self.down = down; self.up = up }
 }
 
 public struct Routine: Codable, Equatable, Identifiable, Sendable {
     public var name: String
     public var bpm: Double
     public var events: [NoteEvent]
+    /// Opcional; ausente = sem pedal.
+    public var pedal: [PedalEvent]?
     public var id: String { name }
-    public init(name: String, bpm: Double, events: [NoteEvent]) { self.name = name; self.bpm = bpm; self.events = events }
+    public init(name: String, bpm: Double, events: [NoteEvent], pedal: [PedalEvent]? = nil) {
+        self.name = name; self.bpm = bpm; self.events = events; self.pedal = pedal
+    }
+    /// Fim da última nota ou do último pedal, em beats.
+    public var lengthBeats: Double {
+        max(events.map { $0.beat + $0.duration }.max() ?? 0, pedal?.map(\.up).max() ?? 0)
+    }
     /// Evento de menor beat; empate → mais grave.
     public var tonic: Int? { events.min { ($0.beat, $0.note) < ($1.beat, $1.note) }?.note }
 }
@@ -22,7 +41,10 @@ public struct ScheduledNote: Equatable, Sendable {
     public let note: Int
     public let start: TimeInterval
     public let duration: TimeInterval
-    public init(note: Int, start: TimeInterval, duration: TimeInterval) { self.note = note; self.start = start; self.duration = duration }
+    public let velocity: Int
+    public init(note: Int, start: TimeInterval, duration: TimeInterval, velocity: Int = 90) {
+        self.note = note; self.start = start; self.duration = duration; self.velocity = velocity
+    }
 }
 
 public enum Playback {
@@ -37,8 +59,15 @@ public enum Playback {
         let spb = 60 / bpm
         return routine.events.compactMap { e in
             let n = e.note + shift
-            return (21...108).contains(n) ? ScheduledNote(note: n, start: e.beat * spb, duration: e.duration * spb) : nil
+            return (21...108).contains(n) ? ScheduledNote(note: n, start: e.beat * spb, duration: e.duration * spb,
+                                                       velocity: min(127, max(1, e.velocity ?? 90))) : nil
         }
+    }
+
+    /// Pedal em segundos (down, up).
+    public static func pedal(_ routine: Routine, bpm: Double) -> [(down: TimeInterval, up: TimeInterval)] {
+        let spb = 60 / bpm
+        return (routine.pedal ?? []).map { ($0.down * spb, $0.up * spb) }
     }
 }
 
@@ -181,7 +210,10 @@ public func noteName(_ note: Int) -> String {
       "bpm": 80,
       "events": [
         { "note": 48, "beat": 0, "duration": 1 },
-        { "note": 50, "beat": 1, "duration": 1 }
+        { "note": 50, "beat": 1, "duration": 1, "velocity": 110 }
+      ],
+      "pedal": [
+        { "down": 0, "up": 2 }
       ]
     }
     ```
@@ -190,6 +222,8 @@ public func noteName(_ note: Int) -> String {
     - `bpm`: andamento padrão de reprodução.
     - `note`: MIDI de 21 a 108. 60 = Dó4 (Dó central); +1 = meio tom.
     - `beat` e `duration`: em tempos (semínimas), não em segundos. Notas simultâneas = mesmo `beat`.
+    - `velocity` (opcional): força da nota, 1 a 127. Ausente = 90.
+    - `pedal` (opcional): pedal de sustain pisado de `down` até `up` (em tempos). Notas soltas nesse intervalo seguem soando até o `up`. Para trocar o pedal, termine um e comece outro no mesmo tempo.
     - Tônica = nota do evento de menor `beat` (empate: a mais grave). O app transpõe a rotina a partir dela na progressão.
 
     ## Como trabalhar aqui

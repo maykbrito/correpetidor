@@ -66,4 +66,20 @@ final class CorrepetidorCoreTests: XCTestCase {
         try store.delete(store.routines[0])
         XCTAssertEqual(RoutineStore(directory: dir).routines.map(\.name), ["Zé Escala"])
     }
+
+    func testOldRoutineJSONStillDecodes() throws {
+        let json = #"{"name":"X","bpm":60,"events":[{"note":60,"beat":0,"duration":1}]}"#
+        let r = try JSONDecoder().decode(Routine.self, from: Data(json.utf8))
+        XCTAssertNil(r.pedal)
+        XCTAssertEqual(Playback.schedule(r, tonic: 60, bpm: 60)[0].velocity, 90)
+    }
+
+    func testVelocityAndPedal() throws {
+        let json = #"{"name":"X","bpm":60,"events":[{"note":60,"beat":0,"duration":1,"velocity":200}],"pedal":[{"down":0,"up":3}]}"#
+        let r = try JSONDecoder().decode(Routine.self, from: Data(json.utf8))
+        XCTAssertEqual(Playback.schedule(r, tonic: 62, bpm: 120)[0].velocity, 127)
+        XCTAssertEqual(r.lengthBeats, 3)
+        let p = Playback.pedal(r, bpm: 120)
+        XCTAssertEqual(p.map(\.down), [0]); XCTAssertEqual(p.map(\.up), [1.5])
+    }
 }

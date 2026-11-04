@@ -92,9 +92,9 @@ struct Recorder {
     }
 
     // MARK: notas (ponto central)
-    func noteOn(_ n: Int) {
+    func noteOn(_ n: Int, velocity: Int = 90) {
         guard (21...108).contains(n) else { return }
-        audio?.noteOn(n); lit.insert(n)
+        audio?.noteOn(n, velocity: velocity); lit.insert(n)
         if isRecording { recorder.noteOn(n) }
     }
 
@@ -162,7 +162,7 @@ struct Recorder {
         let bpm = bpm, progression = tonics.count > 1
         let spb = 60 / bpm
         // rotina e pausa em tempos inteiros: cada repetição cai no pulso do metrônomo
-        let lengthBeats = (r.events.map { $0.beat + $0.duration }.max() ?? 0).rounded(.up)
+        let lengthBeats = r.lengthBeats.rounded(.up)
         let pauseBeats = (pause / spb).rounded(.up)
         task?.cancel()   // derruba metrônomo livre, se houver
         isPlaying = true
@@ -176,7 +176,7 @@ struct Recorder {
                     if Task.isCancelled { break }
                     let next = i + 1 < tonics.count ? tonics[i + 1] : (loop ? tonics.first : nil)
                     if progression { now = (t, next) }
-                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm), at: t0 + .seconds(beat * spb))
+                    await playOnce(Playback.schedule(r, tonic: t, bpm: bpm), pedal: Playback.pedal(r, bpm: bpm), at: t0 + .seconds(beat * spb))
                     beat += lengthBeats + (next != nil ? pauseBeats : 0)
                     guard (try? await Task.sleep(until: t0 + .seconds(beat * spb))) != nil else { break }
                 }
@@ -185,12 +185,22 @@ struct Recorder {
         }
     }
 
-    private func playOnce(_ notes: [ScheduledNote], at start: ContinuousClock.Instant) async {
+    private func playOnce(_ notes: [ScheduledNote], pedal: [(down: TimeInterval, up: TimeInterval)],
+                          at start: ContinuousClock.Instant) async {
         await withTaskGroup(of: Void.self) { g in
+            // pedal da rotina soma com o SUSTAIN do usuário: soltar volta ao estado do botão
+            for p in pedal {
+                g.addTask { @MainActor in
+                    guard (try? await Task.sleep(until: start + .seconds(p.down))) != nil else { return }
+                    self.audio?.sustain = true
+                    try? await Task.sleep(until: start + .seconds(p.up))
+                    self.audio?.sustain = self.sustain
+                }
+            }
             for s in notes {
                 g.addTask { @MainActor in
                     guard (try? await Task.sleep(until: start + .seconds(s.start))) != nil else { return }
-                    self.noteOn(s.note)
+                    self.noteOn(s.note, velocity: s.velocity)
                     try? await Task.sleep(until: start + .seconds(s.start + s.duration))
                     self.noteOff(s.note)
                 }
@@ -201,6 +211,7 @@ struct Recorder {
     private func finishPlay() {
         isPlaying = false; now = nil
         for n in lit { noteOff(n) }
+        audio?.sustain = sustain
     }
 
     func stop() {

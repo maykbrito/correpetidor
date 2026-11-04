@@ -72,4 +72,4 @@ gh release create vX.Y.Z dist/Correpetidor.zip --generate-notes
 
 ## Ideias futuras
 
-Rotinas como músicas (acordes já funcionam), `velocity`/pedal opcionais por nota, importar `.mid`, modo estudo que espera a nota certa. Fora do escopo hoje: iOS, MIDI USB, IA dentro do app.
+Importar `.mid` (velocity por nota e `pedal` como eventos `down`/`up` em beats já existem), modo estudo que espera a nota certa. Fora do escopo hoje: iOS, MIDI USB, IA dentro do app.
